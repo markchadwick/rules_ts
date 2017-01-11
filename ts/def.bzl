@@ -26,10 +26,13 @@ def ts_library(name, **kwargs):
 
 def ts_binary(name, **kwargs):
   src_name = name + '.src'
+  main = kwargs.pop('main')
+
   ts_srcs(name=src_name, **kwargs)
 
   js_binary(
     name = name,
+    main = main,
     srcs = [src_name],
     deps = kwargs.get('deps', []),
   )
