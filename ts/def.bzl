@@ -1,6 +1,9 @@
-load('@io_bazel_rules_js//js:def.bzl', 'js_library', 'js_binary')
+load('@io_bazel_rules_js//js:def.bzl',
+  'js_binary',
+  'js_library',
+  'js_test')
 
-load('@io_bazel_rules_ts//ts/private:rules.bzl', 'ts_srcs')
+load('@io_bazel_rules_ts//ts/private:rules.bzl', 'ts_src', 'ts_srcs')
 
 
 def ts_repositories():
@@ -27,13 +30,24 @@ def ts_library(name, **kwargs):
 
 def ts_binary(name, **kwargs):
   src_name = name + '.src'
-  main = kwargs.pop('main')
-
-  ts_srcs(name=src_name, **kwargs)
+  ts_src(name=src_name, **kwargs)
 
   js_binary(
     name = name,
-    main = main,
+    src  = src_name,
+    deps = kwargs.get('deps', []),
+  )
+
+
+def ts_test(name, **kwargs):
+  src_name = name + '.src'
+  size = kwargs.pop('size')
+
+  ts_srcs(name=src_name, declaration=False, **kwargs)
+
+  js_test(
+    name = name,
+    size = size,
     srcs = [src_name],
     deps = kwargs.get('deps', []),
     visibility = kwargs.get('visibility'),
