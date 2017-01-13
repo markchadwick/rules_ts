@@ -8,6 +8,7 @@ load('//ts/private:flags.bzl', 'tsc_attrs', 'tsc_flags')
 ts_type = FileType(['.ts', '.tsx'])
 
 def _ts_srcs_impl(ctx):
+  bin_dir = ctx.configuration.bin_dir.path
   inputs  = list(ctx.files.srcs) + [ctx.file._tsc_lib]
   outputs = []
   cmds = [
@@ -21,7 +22,7 @@ def _ts_srcs_impl(ctx):
     inputs.append(tar)
     cmds.append('tar -xzf %s -C ./node_modules' % tar.path)
 
-  # For each input file, expect it to create a corresponding .ts and .d.ts file.
+  # For each input file, expect it to create a corresponding .js and .d.ts file.
   for src in ctx.files.srcs:
     basename = src.basename
     name     = basename[:basename.rfind('.')]
@@ -32,22 +33,36 @@ def _ts_srcs_impl(ctx):
     outputs.append(ctx.new_file(js_src))
     outputs.append(ctx.new_file(ts_def))
 
-  # Build up the arguments to give TSC, and add the command.
+  # We will either be building source files (relative to '.'), or generated
+  # files (relative to the bazel-bin directory). Since it's not possible to
+  # construct a typescript declaration which mixed the two files, we will assume
+  # our source files are relative to '.' unless the first file starts with the
+  # bazel-bin directory, then use that as the source root.
+  #
+  # When tsc tries to infer the source root directory, it will take the longest
+  # prefix shared by all source files, which is almost always the path to the
+  # module where tsc as been invoked. It likely works well for
+  # compile-everything-at-once projects, but would put everything at the top
+  # level in a scheme that compiles each module independently.
+  root_dir = '.'
+  if ctx.files.srcs and ctx.files.srcs[0].path.startswith(bin_dir):
+    root_dir = bin_dir
+
+  # Build up the command to pass node to invoke the TypeScript compiler with the
+  # necessary sources
   inputs.append(ctx.executable._node)
   inputs.append(ctx.file._tsc)
-
   tsc_cmd = [
     ctx.executable._node.path,
     ctx.file._tsc.path,
 
     '--declaration',
-    '--rootDir', '.',
-    '--outDir', ctx.configuration.bin_dir.path,
+    '--rootDir', root_dir,
+    '--outDir', bin_dir,
   ] + [src.path for src in ctx.files.srcs]
   tsc_cmd += tsc_flags(ctx.attr)
   cmds.append(' '.join(tsc_cmd))
 
-  # Build up the commands and pass them off to ol' Bazel.
   ctx.action(
     command  = ' && \n'.join(cmds),
     inputs   = inputs,

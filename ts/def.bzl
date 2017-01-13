@@ -21,6 +21,7 @@ def ts_library(name, **kwargs):
     name = name,
     srcs = [src_name],
     deps = kwargs.get('deps', []),
+    visibility = kwargs.get('visibility'),
   )
 
 
@@ -35,4 +36,5 @@ def ts_binary(name, **kwargs):
     main = main,
     srcs = [src_name],
     deps = kwargs.get('deps', []),
+    visibility = kwargs.get('visibility'),
   )
