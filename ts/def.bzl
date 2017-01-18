@@ -43,12 +43,15 @@ def ts_test(name, **kwargs):
   src_name = name + '.src'
   size = kwargs.pop('size')
 
-  ts_srcs(name=src_name, declaration=False, **kwargs)
+  deps = kwargs.pop('deps', [])
+  compile_deps = deps + ['@mocha//:lib']
+
+  ts_srcs(name=src_name, declaration=False, deps=compile_deps, **kwargs)
 
   js_test(
     name = name,
     size = size,
     srcs = [src_name],
-    deps = kwargs.get('deps', []),
+    deps = deps,
     visibility = kwargs.get('visibility'),
   )
