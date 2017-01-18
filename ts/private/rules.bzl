@@ -24,7 +24,12 @@ def _compile(ctx, srcs):
     cmds.append('tar -xzf %s -C ./node_modules' % tar.path)
 
   # For each input file, expect it to create a corresponding .js and .d.ts file.
+  # If the source is a .d.ts file, pass it to the parser, but don't expect an
+  # output file
   for src in srcs:
+    if src.path.endswith('.d.ts'):
+      continue
+
     basename = src.basename
     name     = basename[:basename.rfind('.')]
 

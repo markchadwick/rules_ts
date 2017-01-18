@@ -15,6 +15,15 @@ def ts_repositories():
     build_file   = '@io_bazel_rules_ts//ts/toolchain:typescript.BUILD',
   )
 
+  # Use the mocha typedef file as a source when running `ts_test`
+  native.new_http_archive(
+    name = 'mocha_types',
+    url = 'http://registry.npmjs.org/@types/mocha/-/mocha-2.2.37.tgz',
+    strip_prefix = 'mocha',
+    sha256 = '5d58404cf416052ba01b3c419a431d3cc253b23414bbdabc83e9961f82ac6e0f',
+    build_file_content = 'exports_files(["index.d.ts"])',
+  )
+
 
 def ts_library(name, **kwargs):
   src_name = name + '.src'
@@ -41,12 +50,20 @@ def ts_binary(name, **kwargs):
 
 def ts_test(name, **kwargs):
   src_name = name + '.src'
-  size = kwargs.pop('size')
+  size     = kwargs.pop('size')
+
+  srcs = kwargs.pop('srcs', [])
+  compile_srcs = srcs + ['@mocha_types//:index.d.ts']
 
   deps = kwargs.pop('deps', [])
   compile_deps = deps + ['@mocha//:lib']
 
-  ts_srcs(name=src_name, declaration=False, deps=compile_deps, **kwargs)
+  ts_srcs(
+    name        = src_name,
+    declaration = False,
+    srcs        = compile_srcs,
+    deps        = compile_deps,
+    **kwargs)
 
   js_test(
     name = name,
