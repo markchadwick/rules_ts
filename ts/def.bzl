@@ -50,7 +50,7 @@ def ts_binary(name, **kwargs):
 
 def ts_test(name, **kwargs):
   src_name = name + '.src'
-  size     = kwargs.pop('size')
+  size     = kwargs.pop('size', None)
 
   srcs = kwargs.pop('srcs', [])
   compile_srcs = srcs + ['@mocha_types//:index.d.ts']

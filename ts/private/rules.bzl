@@ -16,12 +16,19 @@ def _compile(ctx, srcs):
 
   declaration = ctx.attr.declaration
 
-  # First, make sure all dependent tars are extracted into a ./node_modules
-  # directory
+  # First, make sure all dependent tars are extracted into the working
+  # directory. If `allow_relative` is set, they will be expanded into the root
+  # (making the library and source code all at the same level). Otherwise,
+  # library code is expanded into ./node_modules, so that relative imports
+  # outside of the current module will not work.
   dep_tars = transitive_tars(ctx.attr.deps)
   for tar in dep_tars:
     inputs.append(tar)
-    cmds.append('tar -xzf %s -C ./node_modules' % tar.path)
+
+    if ctx.attr.allow_relative:
+      cmds.append('tar -xzf %s' % tar.path)
+    else:
+      cmds.append('tar -xzf %s -C ./node_modules' % tar.path)
 
   # For each input file, expect it to create a corresponding .js and .d.ts file.
   # If the source is a .d.ts file, pass it to the parser, but don't expect an
@@ -102,6 +109,9 @@ def _ts_src_impl(ctx):
 
 attrs = tsc_attrs + {
   'deps': js_dep_attr,
+
+  # Allows importing across module boundaries using relative imports
+  'allow_relative': attr.bool(default=False),
 
   '_node': node_attr,
 
