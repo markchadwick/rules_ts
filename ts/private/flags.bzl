@@ -221,6 +221,13 @@ _tsc_flags = {
     'attr': attr.bool(),
     'flag': '--suppressImplicitAnyIndexErrors',
   },
+
+  # Logs module resolution to stdout
+  'trace_resolution': {
+    'type': 'flag',
+    'attr': attr.bool(),
+    'flag': '--traceResolution',
+  },
 }
 
 
@@ -238,7 +245,7 @@ def tsc_flags(attrs):
     if not value: continue
 
     flag_type = flag['type']
-    if flag_type == 'bool':
+    if flag_type == 'flag':
       flags.append(flag['flag'])
     elif flag_type == 'value':
       flags += [flag['flag'], str(value)]

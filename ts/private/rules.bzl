@@ -6,37 +6,61 @@ load('@io_bazel_rules_js//js/private:rules.bzl',
 load('//ts/private:flags.bzl', 'tsc_attrs', 'tsc_flags')
 
 
-ts_type = FileType(['.ts', '.tsx'])
+ts_src_type = FileType(['.ts', '.tsx'])
+ts_def_type = FileType(['.d.ts'])
 
-def _compile(ctx, srcs):
-  bin_dir = ctx.configuration.bin_dir.path
-  inputs  = srcs + [ctx.file._tsc_lib]
-  outputs = []
-  cmds    = ['mkdir ./node_modules']
-
-  declaration = ctx.attr.declaration
+def _extract_dependencies(ctx):
+  cmds   = []
+  deps   = list(transitive_tars(ctx.attr.deps))
 
   # First, make sure all dependent tars are extracted into the working
   # directory. If `allow_relative` is set, they will be expanded into the root
   # (making the library and source code all at the same level). Otherwise,
   # library code is expanded into ./node_modules, so that relative imports
   # outside of the current module will not work.
-  dep_tars = transitive_tars(ctx.attr.deps)
-  for tar in dep_tars:
-    inputs.append(tar)
+  if ctx.attr.allow_relative:
+    expand_into = '.'
+    cmds.append('ln -s . ./node_modules')
+    cmds.append('trap "{ rm ./node_modules ; }" EXIT')
+  else:
+    expand_into = './node_modules'
+    cmds.append('mkdir ./node_modules')
+    cmds.append('trap "{ rm -rf ./node_modules ; }" EXIT')
 
-    if ctx.attr.allow_relative:
-      cmds.append('tar -xzf %s' % tar.path)
-    else:
-      cmds.append('tar -xzf %s -C ./node_modules' % tar.path)
+  dep_tars = list(transitive_tars(ctx.attr.deps))
+
+  for tar in dep_tars:
+    cmds.append('tar -xzf %s -C %s' % (tar.path, expand_into))
+
+  return cmds, dep_tars
+
+def _transitive_ts_defs(ctx):
+  ts_defs = set()
+
+  for dep in ctx.attr.deps:
+    ts_defs += getattr(dep, 'ts_defs', set())
+
+  ts_defs += getattr(ctx.files, 'ts_defs', set())
+  return set(ts_defs, order='compile')
+
+
+def _compile(ctx, srcs):
+  bin_dir = ctx.configuration.bin_dir.path
+  ts_defs = _transitive_ts_defs(ctx)
+  inputs  = srcs + list(ts_defs) + [ctx.file._tsc_lib]
+  outputs = []
+  cmds    = ['set -eu -o pipefail']
+
+  declaration = ctx.attr.declaration
+
+  extract_cmds, extract_inputs = _extract_dependencies(ctx)
+  cmds   += extract_cmds
+  inputs += extract_inputs
 
   # For each input file, expect it to create a corresponding .js and .d.ts file.
   # If the source is a .d.ts file, pass it to the parser, but don't expect an
   # output file
   for src in srcs:
-    if src.path.endswith('.d.ts'):
-      continue
-
     basename = src.basename
     name     = basename[:basename.rfind('.')]
 
@@ -77,8 +101,9 @@ def _compile(ctx, srcs):
   if declaration:
     tsc_cmd.append('--declaration')
 
-  tsc_cmd += [src.path for src in srcs]
   tsc_cmd += tsc_flags(ctx.attr)
+  tsc_cmd += [ts_def.path for ts_def in ts_defs]
+  tsc_cmd += [src.path for src in srcs]
   cmds.append(' '.join(tsc_cmd))
 
   ctx.action(
@@ -96,7 +121,10 @@ def _compile(ctx, srcs):
   # the command's exit code.
   cmds.append('rm -rf ./node_modules')
 
-  return struct(files=set(outputs))
+  return struct(
+    files   = set(outputs),
+    ts_defs = ts_defs,
+  )
 
 
 def _ts_srcs_impl(ctx):
@@ -108,7 +136,8 @@ def _ts_src_impl(ctx):
 
 
 attrs = tsc_attrs + {
-  'deps': js_dep_attr,
+  'ts_defs': attr.label_list(allow_files=ts_def_type),
+  'deps':    js_dep_attr,
 
   # Allows importing across module boundaries using relative imports
   'allow_relative': attr.bool(default=False),
@@ -129,7 +158,7 @@ attrs = tsc_attrs + {
 ts_srcs = rule(
   _ts_srcs_impl,
   attrs = attrs + {
-    'srcs':         attr.label_list(allow_files=ts_type),
+    'srcs':         attr.label_list(allow_files=ts_src_type),
     'declaration':  attr.bool(default=True),
   }
 )
@@ -137,7 +166,7 @@ ts_srcs = rule(
 ts_src = rule(
   _ts_src_impl,
   attrs = attrs + {
-    'src':          attr.label(allow_files=ts_type, single_file=True),
+    'src':          attr.label(allow_files=ts_src_type, single_file=True),
     'declaration':  attr.bool(default=False),
   }
 )

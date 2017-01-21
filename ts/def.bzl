@@ -15,15 +15,6 @@ def ts_repositories():
     build_file   = '@io_bazel_rules_ts//ts/toolchain:typescript.BUILD',
   )
 
-  # Use the mocha typedef file as a source when running `ts_test`
-  native.new_http_archive(
-    name = 'mocha_types',
-    url = 'http://registry.npmjs.org/@types/mocha/-/mocha-2.2.37.tgz',
-    strip_prefix = 'mocha',
-    sha256 = '5d58404cf416052ba01b3c419a431d3cc253b23414bbdabc83e9961f82ac6e0f',
-    build_file_content = 'exports_files(["index.d.ts"])',
-  )
-
 
 def ts_library(name, **kwargs):
   src_name = name + '.src'
@@ -32,6 +23,7 @@ def ts_library(name, **kwargs):
   js_library(
     name = name,
     srcs = [src_name],
+    ts_defs = src_name,
     deps = kwargs.get('deps', []),
     visibility = kwargs.get('visibility'),
   )
@@ -50,10 +42,17 @@ def ts_binary(name, **kwargs):
 
 def ts_test(name, **kwargs):
   src_name = name + '.src'
-  size     = kwargs.pop('size', None)
 
-  srcs = kwargs.pop('srcs', [])
-  compile_srcs = srcs + ['@mocha_types//:index.d.ts']
+  # Remote all test arguments from the compile command and pass them to only the
+  # test command. See:
+  # https://bazel.build/versions/master/docs/be/common-definitions.html#common-attributes-tests
+  js_test_arg_names = [
+    'args', 'size', 'timeout', 'flaky', 'local', 'shared_count', 'visibility'
+  ]
+  js_test_args = {}
+  for arg_name in js_test_arg_names:
+    if arg_name in kwargs:
+      js_test_args[arg_name] = kwargs.pop(arg_name)
 
   deps = kwargs.pop('deps', [])
   compile_deps = deps + ['@mocha//:lib']
@@ -61,14 +60,12 @@ def ts_test(name, **kwargs):
   ts_srcs(
     name        = src_name,
     declaration = False,
-    srcs        = compile_srcs,
+    srcs        = kwargs.pop('srcs', []),
     deps        = compile_deps,
     **kwargs)
 
   js_test(
     name = name,
-    size = size,
     srcs = [src_name],
     deps = deps,
-    visibility = kwargs.get('visibility'),
-  )
+    **js_test_args)
