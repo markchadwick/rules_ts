@@ -123,6 +123,13 @@ _tsc_flags = {
     'flag': '--newLine',
   },
 
+  # Force tsc to print out full error message
+  'no_error_truncation': {
+    'type': 'flag',
+    'attr': attr.bool(),
+    'flag': '--noErrorTruncation',
+  },
+
   # Do not emit outputs if any errors were reported.
   'no_emit_on_error': {
     'type': 'flag',
