@@ -60,10 +60,16 @@ def _compile(ctx, srcs):
   # For each input file, expect it to create a corresponding .js and .d.ts file.
   # If the source is a .d.ts file, pass it to the parser, but don't expect an
   # output file
+  package = ctx.label.package +'/'
   for src in srcs:
     basename = src.basename
-    name     = basename[:basename.rfind('.')]
 
+    # Allow for sub-directories of a single module
+    path = src.path
+    if path.startswith(package):
+      basename = path.replace(package, '', 1)
+
+    name = basename[:basename.rfind('.')]
     js_src = name + '.js'
     outputs.append(ctx.new_file(js_src))
 
